@@ -1,13 +1,81 @@
 /* ==========================================================================
-   Aura Detector — JavaScript Logic
-   Created for NexaSoul Web Development Foundation Bootcamp
+   Aura Detector — Enhanced JavaScript (Chili Spice Edition)
+   NexaSoul Web Development Foundation Bootcamp
    ========================================================================== */
 
-// --------------------------------------------------------------------------
-// 1. QUESTION DATA
-// Array of 10 questions with 4 options each.
-// Each option has text and a score value.
-// --------------------------------------------------------------------------
+// ─── PARTICLE CANVAS ─────────────────────────────────────────────────────────
+(function initParticles() {
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [];
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function createParticle() {
+        return {
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: Math.random() * 1.8 + 0.4,
+            dx: (Math.random() - 0.5) * 0.35,
+            dy: -(Math.random() * 0.5 + 0.15),
+            alpha: Math.random() * 0.5 + 0.15,
+            color: Math.random() > 0.5 ? '205,28,24' : '255,168,150'
+        };
+    }
+
+    for (let i = 0; i < 80; i++) particles.push(createParticle());
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+        particles.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+            ctx.fill();
+            p.x += p.dx;
+            p.y += p.dy;
+            if (p.y < -10 || p.x < -10 || p.x > W + 10) {
+                Object.assign(p, createParticle(), { y: H + 5 });
+            }
+        });
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
+
+// ─── SCROLL REVEAL ────────────────────────────────────────────────────────────
+const animEls = document.querySelectorAll('[data-anim]');
+const revealObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); } });
+}, { threshold: 0.15 });
+animEls.forEach(el => revealObs.observe(el));
+
+// Hero fade-ups on load
+window.addEventListener('load', () => {
+    document.querySelectorAll('.fade-up').forEach(el => {
+        setTimeout(() => el.classList.add('visible'), 100);
+    });
+});
+
+// ─── RIPPLE EFFECT ────────────────────────────────────────────────────────────
+document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        const r = document.createElement('span');
+        r.className = 'ripple';
+        const rect = this.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+        this.appendChild(r);
+        setTimeout(() => r.remove(), 600);
+    });
+});
+
+// ─── QUIZ DATA ────────────────────────────────────────────────────────────────
 const questions = [
     {
         question: "Q1. Your friend says 'Bro, let's go out.' You:",
@@ -101,134 +169,99 @@ const questions = [
     }
 ];
 
-// --------------------------------------------------------------------------
-// 2. STATE VARIABLES
-// Track the state of the quiz as the user answers questions.
-// --------------------------------------------------------------------------
+// ─── STATE ────────────────────────────────────────────────────────────────────
 let currentQuestionIndex = 0;
 let totalScore = 0;
 let selectedOptionScore = null;
 
-// --------------------------------------------------------------------------
-// 3. DOM ELEMENTS
-// Selecting HTML elements to interact with them in JS.
-// --------------------------------------------------------------------------
-const startBtn = document.getElementById("start-btn");
-const nextBtn = document.getElementById("next-btn");
-const retryBtn = document.getElementById("retry-btn");
+// ─── DOM REFS ─────────────────────────────────────────────────────────────────
+const startBtn            = document.getElementById('start-btn');
+const nextBtn             = document.getElementById('next-btn');
+const retryBtn            = document.getElementById('retry-btn');
+const heroSection         = document.getElementById('hero');
+const aboutSection        = document.getElementById('about');
+const quizContainer       = document.getElementById('quiz-container');
+const resultContainer     = document.getElementById('result-container');
+const questionProgressText= document.getElementById('question-progress');
+const progressBarFill     = document.getElementById('progress-bar-fill');
+const questionText        = document.getElementById('question-text');
+const optionsContainer    = document.getElementById('options-container');
+const warningMsg          = document.getElementById('warning-msg');
+const finalScoreElement   = document.getElementById('final-score');
+const auraLevelTitle      = document.getElementById('aura-level-title');
+const auraLevelDesc       = document.getElementById('aura-level-desc');
 
-const heroSection = document.getElementById("hero");
-const aboutSection = document.getElementById("about");
-const quizContainer = document.getElementById("quiz-container");
-const resultContainer = document.getElementById("result-container");
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
+startBtn.addEventListener('click', startQuiz);
+nextBtn.addEventListener('click', handleNextQuestion);
+retryBtn.addEventListener('click', resetQuiz);
 
-const questionProgressText = document.getElementById("question-progress");
-const progressBarFill = document.getElementById("progress-bar-fill");
-const questionText = document.getElementById("question-text");
-const optionsContainer = document.getElementById("options-container");
-const warningMsg = document.getElementById("warning-msg");
-
-const finalScoreElement = document.getElementById("final-score");
-const auraLevelTitle = document.getElementById("aura-level-title");
-const auraLevelDesc = document.getElementById("aura-level-desc");
-
-// --------------------------------------------------------------------------
-// 4. EVENT LISTENERS
-// --------------------------------------------------------------------------
-startBtn.addEventListener("click", startQuiz);
-nextBtn.addEventListener("click", handleNextQuestion);
-retryBtn.addEventListener("click", resetQuiz);
-
-// --------------------------------------------------------------------------
-// 5. FUNCTIONS
-// --------------------------------------------------------------------------
-
-// Function: Start the Quiz
+// ─── FUNCTIONS ────────────────────────────────────────────────────────────────
 function startQuiz() {
-    // Hide Hero and About sections
-    heroSection.style.display = "none";
-    aboutSection.style.display = "none";
-
-    // Show Quiz section
-    quizContainer.style.display = "block";
-
-    // Reset state variables
+    heroSection.style.display  = 'none';
+    aboutSection.style.display = 'none';
+    quizContainer.style.display = 'block';
     currentQuestionIndex = 0;
     totalScore = 0;
-
-    // Load first question
     loadQuestion();
+    quizContainer.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Function: Load Question & Options
 function loadQuestion() {
-    // Reset selected option for current question
     selectedOptionScore = null;
-    warningMsg.style.display = "none";
+    warningMsg.style.display = 'none';
 
-    const currentQuestion = questions[currentQuestionIndex];
-
-    // Update Progress Indicator
+    const q = questions[currentQuestionIndex];
     questionProgressText.textContent = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
-    const progressPercent = ((currentQuestionIndex + 1) / questions.length) * 100;
-    progressBarFill.style.width = `${progressPercent}%`;
+    progressBarFill.style.width = `${((currentQuestionIndex + 1) / questions.length) * 100}%`;
+    questionText.textContent = q.question;
+    optionsContainer.innerHTML = '';
+    // Reset sibling-dim state for the new question
+    optionsContainer.classList.remove('has-selection');
 
-    // Update Question Title
-    questionText.textContent = currentQuestion.question;
-
-    // Clear previous option buttons
-    optionsContainer.innerHTML = "";
-
-    // Generate option buttons dynamically
-    currentQuestion.options.forEach((option) => {
-        const button = document.createElement("button");
-        button.classList.add("option-btn");
-        button.textContent = option.text;
-
-        // When user clicks an option button
-        button.addEventListener("click", () => {
-            selectOption(button, option.score);
+    q.options.forEach(option => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = option.text;
+        btn.addEventListener('click', () => selectOption(btn, option.score));
+        // Ripple on option click
+        btn.addEventListener('click', function(e) {
+            const r = document.createElement('span');
+            r.className = 'ripple';
+            const rect = this.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+            this.appendChild(r);
+            setTimeout(() => r.remove(), 600);
         });
-
-        optionsContainer.appendChild(button);
+        optionsContainer.appendChild(btn);
     });
 
-    // Update Next button label on last question
-    if (currentQuestionIndex === questions.length - 1) {
-        nextBtn.textContent = "Submit & Reveal Aura 🔮";
-    } else {
-        nextBtn.textContent = "Next Question →";
-    }
+    nextBtn.textContent = currentQuestionIndex === questions.length - 1
+        ? 'Submit & Reveal Aura 🔮'
+        : 'Next Question →';
 }
 
-// Function: Handle Option Selection
 function selectOption(selectedBtn, score) {
-    // Save selected score
     selectedOptionScore = score;
-    warningMsg.style.display = "none";
-
-    // Remove 'selected' class from all buttons
-    const allOptions = optionsContainer.querySelectorAll(".option-btn");
-    allOptions.forEach((btn) => btn.classList.remove("selected"));
-
-    // Add 'selected' class to clicked button
-    selectedBtn.classList.add("selected");
+    warningMsg.style.display = 'none';
+    // Remove selected class from all, then mark the chosen one
+    optionsContainer.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    selectedBtn.classList.add('selected');
+    // Add .has-selection so CSS dims the non-chosen siblings
+    optionsContainer.classList.add('has-selection');
 }
 
-// Function: Handle Next Question / Submit
 function handleNextQuestion() {
-    // Check if an option was selected
     if (selectedOptionScore === null) {
-        warningMsg.style.display = "block";
+        warningMsg.style.display = 'block';
+        warningMsg.style.animation = 'none';
+        void warningMsg.offsetHeight;
+        warningMsg.style.animation = '';
         return;
     }
-
-    // Add score to total
     totalScore += selectedOptionScore;
-
-    // Move to next question or show results
     currentQuestionIndex++;
-
     if (currentQuestionIndex < questions.length) {
         loadQuestion();
     } else {
@@ -236,56 +269,42 @@ function handleNextQuestion() {
     }
 }
 
-// Function: Calculate Aura Level and Display Results
-function showResults() {
-    // Hide Quiz container
-    quizContainer.style.display = "none";
-
-    // Show Result container
-    resultContainer.style.display = "block";
-
-    // Display final score
-    finalScoreElement.textContent = totalScore;
-
-    // Determine Aura Level based on score
-    let levelTitle = "";
-    let levelDesc = "";
-
-    if (totalScore <= 39) {
-        levelTitle = "😶 NPC ENERGY";
-        levelDesc = "You're living on default settings bro! Time to make some main character choices and get your aura up.";
-    } else if (totalScore <= 59) {
-        levelTitle = "😐 AVERAGE AURA";
-        levelDesc = "Not bad, not crazy. You're holding down the fort, but there's a main character waiting to break free.";
-    } else if (totalScore <= 69) {
-        levelTitle = "😎 COOL AURA";
-        levelDesc = "Chilled out, relaxed, and smooth. You don't try too hard, yet you keep your cool under pressure.";
-    } else if (totalScore <= 79) {
-        levelTitle = "🔥 PRO AURA";
-        levelDesc = "You know what you're doing. You walk into situations with confidence and somehow make it work. That's some serious aura!";
-    } else if (totalScore <= 89) {
-        levelTitle = "🗿 SAVAGE AURA";
-        levelDesc = "Unshakable mindset. You handle campus chaos like a walk in the park. Respect maxed out!";
-    } else {
-        levelTitle = "👑 UNLIMITED AURA";
-        levelDesc = "Absolute Main Character energy! The room shifts when you walk in. You possess unmatched aura!";
-    }
-
-    auraLevelTitle.textContent = levelTitle;
-    auraLevelDesc.textContent = levelDesc;
+function animateScore(target) {
+    let current = 0;
+    const step = Math.ceil(target / 40);
+    const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        finalScoreElement.textContent = current;
+        if (current >= target) clearInterval(timer);
+    }, 30);
 }
 
-// Function: Reset Quiz
+function showResults() {
+    quizContainer.style.display  = 'none';
+    resultContainer.style.display = 'block';
+    resultContainer.scrollIntoView({ behavior: 'smooth' });
+
+    // Animate score counter
+    animateScore(totalScore);
+
+    let levelTitle, levelDesc;
+    if      (totalScore <= 39) { levelTitle = '😶 NPC ENERGY';    levelDesc = "You're living on default settings bro! Time to make some main character choices and get your aura up."; }
+    else if (totalScore <= 59) { levelTitle = '😐 AVERAGE AURA';  levelDesc = "Not bad, not crazy. You're holding down the fort, but there's a main character waiting to break free."; }
+    else if (totalScore <= 69) { levelTitle = '😎 COOL AURA';     levelDesc = "Chilled out, relaxed, and smooth. You don't try too hard, yet you keep your cool under pressure."; }
+    else if (totalScore <= 79) { levelTitle = '🔥 PRO AURA';      levelDesc = "You know what you're doing. You walk into situations with confidence and somehow make it work. Serious aura!"; }
+    else if (totalScore <= 89) { levelTitle = '🗿 SAVAGE AURA';   levelDesc = "Unshakable mindset. You handle campus chaos like a walk in the park. Respect maxed out!"; }
+    else                       { levelTitle = '👑 UNLIMITED AURA'; levelDesc = "Absolute Main Character energy! The room shifts when you walk in. You possess unmatched aura!"; }
+
+    auraLevelTitle.textContent = levelTitle;
+    auraLevelDesc.textContent  = levelDesc;
+}
+
 function resetQuiz() {
-    // Hide Result container
-    resultContainer.style.display = "none";
-
-    // Show Hero and About sections
-    heroSection.style.display = "block";
-    aboutSection.style.display = "block";
-
-    // Reset variables
+    resultContainer.style.display = 'none';
+    heroSection.style.display     = 'block';
+    aboutSection.style.display    = 'block';
     currentQuestionIndex = 0;
     totalScore = 0;
     selectedOptionScore = null;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
